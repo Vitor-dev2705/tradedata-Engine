@@ -1,0 +1,8 @@
+pandas
+yfinance
+duckdb
+fastapi
+uvicorn
+pyarrow
+streamlit
+plotly
