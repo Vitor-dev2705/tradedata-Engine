@@ -1,8 +1,8 @@
 import requests
 
 def send_alert(message):
-    token = "8379434413:AAFsUGCoktuan8pW0XlW515nC6Qndb5h-bM"
-    chat_id = "5203055547"
+    token = "sei token"
+    chat_id = "seu id"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
     payload = {
