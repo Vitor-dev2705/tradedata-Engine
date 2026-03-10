@@ -1,38 +1,55 @@
 import yfinance as yf
-import pandas as pd
-import json
 import os
+import glob
 from datetime import datetime
 
-def fetch_crypto_data(ticker="BTC-USD"):
-    print(f"Iniciando extração de {ticker}...")
+def clear_raw_data():
+    files = glob.glob("data/raw/*.json")
+    for f in files:
+        try:
+            os.remove(f)
+        except Exception as e:
+            print(f" Erro ao limpar arquivo antigo {f}: {e}")
+
+def extract_data(interval="1h", period="90d"):
+    symbols = ["BTC-USD", "ETH-USD", "SOL-USD"]
     
-    df = yf.download(ticker, period="7d", interval="1h")
-    df = df.reset_index()
+    os.makedirs("data/raw", exist_ok=True)
     
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [col[0] for col in df.columns]
-    else:
-        df.columns = [str(col) for col in df.columns]
-        
-    raw_data = df.to_dict(orient="records")
+    clear_raw_data()
     
-    path = 'data/raw'
-    if os.path.exists(path) and not os.path.isdir(path):
-        os.remove(path)
-        
-    os.makedirs(path, exist_ok=True)
-    
-    asset_prefix = ticker.split('-')[0].lower()
-    filename = f"{path}/{asset_prefix}_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-    
-    with open(filename, 'w') as f:
-        json.dump(raw_data, f, default=str)
-    
-    print(f"Dados brutos salvos em: {filename}")
-    return filename
+    for symbol in symbols:
+        try:
+            print(f" Extraindo {symbol} (Período: {period}, Intervalo: {interval})...")
+            ticker = yf.Ticker(symbol)
+            
+            df = ticker.history(period=period, interval=interval)
+            
+            if df.empty:
+                print(f" Falha ao obter dados para {symbol}. Tentando período menor...")
+                df = ticker.history(period="30d", interval=interval)
+
+            if not df.empty:
+                df = df.reset_index()
+                
+                if 'Datetime' in df.columns:
+                    df['Datetime'] = df['Datetime'].dt.strftime('%Y-%m-%d %H:%M:%S%z')
+                elif 'Date' in df.columns:
+                    df = df.rename(columns={'Date': 'Datetime'})
+                    df['Datetime'] = df['Datetime'].dt.strftime('%Y-%m-%d %H:%M:%S%z')
+                
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"data/raw/{symbol.lower()}_{timestamp}.json"
+                
+                df.to_json(filename, orient="records")
+                print(f" {symbol} salvo com sucesso! ({len(df)} linhas)")
+            
+        except Exception as e:
+            print(f" Erro ao processar {symbol}: {e}")
+
+def main():
+   
+    extract_data(interval="1h", period="90d")
 
 if __name__ == "__main__":
-    import sys
-    target = sys.argv[1] if len(sys.argv) > 1 else "BTC-USD"
-    fetch_crypto_data(target)
+    main()

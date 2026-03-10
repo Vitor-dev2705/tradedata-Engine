@@ -1,34 +1,58 @@
 import os
 import subprocess
 import sys
+import time
+from datetime import datetime
+
+def clear_raw_data(root_dir):
+    raw_path = os.path.join(root_dir, 'data', 'raw')
+    if os.path.exists(raw_path):
+        for filename in os.listdir(raw_path):
+            file_path = os.path.join(raw_path, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+            except Exception:
+                pass
 
 def run_full_pipeline():
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    python_exe = sys.executable  # Usa o Python que está rodando este script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+    python_exe = sys.executable 
     
-    ativos = ["BTC-USD", "ETH-USD", "SOL-USD"]
-    
-    print(f"🚀 Iniciando Pipeline em: {root_dir}")
-
     scripts = [
-        ("Transformação", "src/transform.py"),
-        ("Análise", "src/gerar_linhas.py"),
-        ("Qualidade", "src/quality_check.py")
+        ("Extracao (Bronze)", "src/extract.py"),
+        ("Transformacao (Silver)", "src/transform.py"),
+        ("Analise de Precos (Gold)", "src/market_brain.py"), 
+        ("Validacao (Qualidade)", "src/quality_check.py")
     ]
 
-    for ativo in ativos:
-        print(f" Extraindo {ativo}...")
-        subprocess.run([python_exe, os.path.join(root_dir, "src/extract.py"), ativo], check=True)
+    while True:
+        start_time = datetime.now()
+        print(f"[{start_time.strftime('%H:%M:%S')}] Iniciando Ciclo...")
 
-    for nome, script_rel in scripts:
-        script_path = os.path.join(root_dir, script_rel)
-        if os.path.exists(script_path):
-            print(f" Executando {nome}...")
-            subprocess.run([python_exe, script_path], check=True)
-        else:
-            print(f" Aviso: Script {script_rel} não encontrado.")
+        success = True
+        for nome, script_rel in scripts:
+            script_path = os.path.join(root_dir, script_rel)
+            
+            if os.path.exists(script_path):
+                try:
+                    subprocess.run([python_exe, script_path], check=True, cwd=root_dir)
+                except subprocess.CalledProcessError:
+                    success = False
+                    if "quality_check" not in script_rel:
+                        break
+            
+        if success:
+            clear_raw_data(root_dir)
 
-    print("\n Pipeline concluído!")
+        end_time = datetime.now()
+        duracao = (end_time - start_time).total_seconds()
+        print(f"Ciclo finalizado em {duracao:.2f}s. Aguardando 60s...")
+        time.sleep(60)
 
 if __name__ == "__main__":
-    run_full_pipeline()
+    try:
+        run_full_pipeline()
+    except KeyboardInterrupt:
+        sys.exit(0)

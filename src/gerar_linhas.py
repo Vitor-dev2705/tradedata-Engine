@@ -52,7 +52,19 @@ def fix_gold_layer():
             sup = data['low_price'].min()
             
             con.execute(f"INSERT INTO price_action_zones VALUES ('{sym}', {res}, 'Resistencia'), ('{sym}', {sup}, 'Suporte')")
-            print(f"✅ Zonas para {sym} calculadas!")
+            print(f" Zonas para {sym} calculadas!")
             
     finally:
         con.close()
+        
+def get_market_analysis():
+    if os.path.exists('/app'):
+        db_path = '/app/data/silver/trading.db'
+    else:
+        db_path = r'C:\Users\Micro\Desktop\PORTIFÓLIO\tradedata-Engine\data\silver\trading.db'
+    
+    if not os.path.exists(db_path):
+        print(f"❌ Erro: Banco não encontrado em {db_path}")
+        return
+
+    con = duckdb.connect(database=db_path)
