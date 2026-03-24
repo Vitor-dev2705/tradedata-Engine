@@ -13,6 +13,10 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit-autorefresh"])
     from streamlit_autorefresh import st_autorefresh
 
+from extract import extract_data, get_crypto_list
+from transform import process_data
+from gerar_linhas import fix_gold_layer
+
 st.set_page_config(page_title="TradeData Engine", layout="wide")
 
 st.markdown("""
@@ -27,22 +31,28 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+def run_full_pipeline():
+    # Removido o cache ou conexões abertas antes de rodar
+    st.cache_resource.clear() 
+    ativos = get_crypto_list()
+    extract_data(ativos)
+    process_data()
+    fix_gold_layer()
+    st.rerun()
+
 def get_db_path():
     relative_path = Path(__file__).parent.parent / "data" / "silver" / "trading.db"
     if relative_path.exists():
         return relative_path
     return Path(r'C:\Users\Micro\Desktop\PORTIFÓLIO\tradedata-Engine\data\silver\trading.db')
 
-@st.cache_resource
-def get_connection(db_path):
-    return duckdb.connect(str(db_path), read_only=True)
-
 def get_all_symbols(db_path):
     if not db_path.exists():
         return []
     try:
-        con = get_connection(db_path)
-        df_symbols = con.execute("SELECT DISTINCT UPPER(symbol) as symbol FROM daily_metrics ORDER BY symbol").df()
+        # Abrir e fechar imediatamente para não travar o arquivo
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            df_symbols = con.execute("SELECT DISTINCT UPPER(symbol) as symbol FROM daily_metrics ORDER BY symbol").df()
         return df_symbols['symbol'].tolist()
     except:
         return []
@@ -50,29 +60,32 @@ def get_all_symbols(db_path):
 def load_data(db_path, symbol):
     if not db_path.exists():
         return pd.DataFrame(), pd.DataFrame(), str(db_path)
-
-    con = get_connection(db_path)
+    
     try:
-        df = con.execute(f"SELECT * FROM daily_metrics WHERE UPPER(symbol) = '{symbol.upper()}' ORDER BY time").df()
-        df.columns = [c.lower() for c in df.columns]
-
-        try:
-            zones = con.execute(f"SELECT * FROM price_action_zones WHERE UPPER(symbol) = '{symbol.upper()}'").df()
-            zones.columns = [c.lower() for c in zones.columns]
-        except:
-            zones = pd.DataFrame()
-            
+        # Uso do 'with' garante que a conexão feche após a leitura
+        with duckdb.connect(str(db_path), read_only=True) as con:
+            df = con.execute(f"SELECT * FROM daily_metrics WHERE UPPER(symbol) = '{symbol.upper()}' ORDER BY time").df()
+            df.columns = [c.lower() for c in df.columns]
+            try:
+                zones = con.execute(f"SELECT * FROM price_action_zones WHERE UPPER(symbol) = '{symbol.upper()}'").df()
+                zones.columns = [c.lower() for c in zones.columns]
+            except:
+                zones = pd.DataFrame()
         return df, zones, str(db_path)
-    except Exception as e:
-        return pd.DataFrame(), pd.DataFrame(), str(e)
+    except:
+        return pd.DataFrame(), pd.DataFrame(), "Erro"
 
 db_current = get_db_path()
 st.sidebar.header("TradeData Engine")
+
+if st.sidebar.button("Rodar Pipeline Completo"):
+    run_full_pipeline()
+
 lista_ativos = get_all_symbols(db_current)
 
 if lista_ativos:
     ativo_selecionado = st.sidebar.selectbox("Ativo", lista_ativos)
-    st_autorefresh(interval=30000, key="datarefresh")
+    st_autorefresh(interval=900000, key="datarefresh")
     
     df, zones, debug_info = load_data(db_current, ativo_selecionado)
 
@@ -119,6 +132,6 @@ if lista_ativos:
         col2.metric("Zonas", len(zones))
         col3.metric("Status", "Online")
     else:
-        st.warning(f"Sem dados para {ativo_selecionado}")
+        st.warning("Sem dados.")
 else:
     st.error("Banco de dados nao encontrado.")
