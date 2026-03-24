@@ -32,7 +32,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def run_full_pipeline():
-    # Removido o cache ou conexões abertas antes de rodar
     st.cache_resource.clear() 
     ativos = get_crypto_list()
     extract_data(ativos)
@@ -50,7 +49,6 @@ def get_all_symbols(db_path):
     if not db_path.exists():
         return []
     try:
-        # Abrir e fechar imediatamente para não travar o arquivo
         with duckdb.connect(str(db_path), read_only=True) as con:
             df_symbols = con.execute("SELECT DISTINCT UPPER(symbol) as symbol FROM daily_metrics ORDER BY symbol").df()
         return df_symbols['symbol'].tolist()
@@ -62,7 +60,6 @@ def load_data(db_path, symbol):
         return pd.DataFrame(), pd.DataFrame(), str(db_path)
     
     try:
-        # Uso do 'with' garante que a conexão feche após a leitura
         with duckdb.connect(str(db_path), read_only=True) as con:
             df = con.execute(f"SELECT * FROM daily_metrics WHERE UPPER(symbol) = '{symbol.upper()}' ORDER BY time").df()
             df.columns = [c.lower() for c in df.columns]
