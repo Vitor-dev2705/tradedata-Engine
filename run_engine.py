@@ -6,16 +6,16 @@ import webbrowser
 import socket
 
 def check_docker():
-    print("🐳 Checando status do Docker Desktop...")
+    print(" Checando status do Docker Desktop...")
     try:
         subprocess.run(["docker", "info"], check=True, capture_output=True, timeout=10)
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-        print("❌ ERRO: O Docker Desktop não está rodando ou não foi encontrado.")
+        print(" ERRO: O Docker Desktop não está rodando ou não foi encontrado.")
         return False
 
 def wait_for_dashboard(port=8501, timeout=30):
-    print(f"🌐 Aguardando Dashboard em http://localhost:{port}...")
+    print(f" Aguardando Dashboard em http://localhost:{port}...")
     start_time = time.time()
     while time.time() - start_time < timeout:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -25,25 +25,25 @@ def wait_for_dashboard(port=8501, timeout=30):
     return False
 
 def run_step(command, desc):
-    print(f"🚀 {desc}...")
+    print(f" {desc}...")
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout, stderr = process.communicate()
     
     if process.returncode != 0:
-        print(f"❌ Falha em {desc}: {stderr.strip()}")
+        print(f" Falha em {desc}: {stderr.strip()}")
         return False
     
     if stdout:
-        print(f"📝 Logs: {stdout.strip()}")
+        print(f" Logs: {stdout.strip()}")
         
-    print(f"✅ {desc} finalizado.")
+    print(f" {desc} finalizado.")
     return True
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     print("\n" + "="*45)
-    print("      TRADE-DATA ENGINE v1.0 - DOCKER MODE")
+    print("TRADE-DATA ENGINE v1.0 - DOCKER MODE")
     print("="*45 + "\n")
 
     if not check_docker():
@@ -75,11 +75,11 @@ def main():
 
     print("\n" + "="*45)
     if wait_for_dashboard(8501):
-        print("✨ SUCESSO: Pipeline Concluído e Dashboard Online!")
-        print("📈 Abrindo: http://localhost:8501")
+        print("SUCESSO: Pipeline Concluído e Dashboard Online!")
+        print("Abrindo: http://localhost:8501")
         webbrowser.open("http://localhost:8501")
     else:
-        print("⚠️ Dashboard demorou para responder. Tente acessar manualmente.")
+        print(" Dashboard demorou para responder. Tente acessar manualmente.")
     print("="*45)
     
     input("\nSistema rodando. Pressione Enter para encerrar...")
