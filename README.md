@@ -73,3 +73,8 @@ Abra o dashboard para visualizar as zonas de suporte e resistência plotadas no 
 ```
 streamlit run src/dashboard.py
 ```
+
+<strong>
+Link para ver o gráfico sem precisar rodar no desktop
+https://trade-engine.streamlit.app/
+<strong>
