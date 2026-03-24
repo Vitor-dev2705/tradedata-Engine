@@ -1,28 +1,33 @@
 import time
-from src.extract import extract_data as run_extraction
-from src.market_brain import process_market_analysis
+import sys
+from pathlib import Path
 
-def start_engine():
-    print(" TradeData Engine: Sentinela Iniciada...")
-    
+# Adiciona a pasta 'src' ao caminho de busca do Python
+sys.path.append(str(Path(__file__).parent / "src"))
+
+# Agora o Python consegue encontrar os módulos dentro de src
+try:
+    from extract import extract_data, get_crypto_list
+    from transform import process_data
+except ImportError as e:
+    print(f"Erro ao importar modulos: {e}")
+    sys.exit(1)
+
+def run_loop():
     while True:
         try:
-            print(f"\n[{time.strftime('%H:%M:%S')}] Iniciando ciclo de atualização...")
+            print(f"[{time.strftime('%H:%M:%S')}] Iniciando ciclo de atualizacao...")
             
-            run_extraction()
-            
-            process_market_analysis()
-            
-            print(f"[{time.strftime('%H:%M:%S')}] Ciclo concluído. Aguardando próximo turno...")
-            
+            ativos = get_crypto_list()
+            extract_data(ativos, interval="1h", period="60d")
+            process_data()
+
+            print("Ciclo finalizado. Aguardando 5 minutos...")
             time.sleep(300) 
             
-        except KeyboardInterrupt:
-            print("\nSistema pausado pelo usuário.")
-            break
         except Exception as e:
-            print(f"Erro crítico no loop: {e}")
-            time.sleep(60) 
+            print(f"Erro critico no loop: {e}")
+            time.sleep(60)
 
 if __name__ == "__main__":
-    start_engine()
+    run_loop()
