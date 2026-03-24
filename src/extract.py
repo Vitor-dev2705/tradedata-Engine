@@ -9,47 +9,62 @@ def clear_raw_data():
         try:
             os.remove(f)
         except Exception as e:
-            print(f" Erro ao limpar arquivo antigo {f}: {e}")
+            print(f" ❌ Erro ao limpar arquivo antigo {f}: {e}")
 
-def extract_data(interval="1h", period="90d"):
-    symbols = ["BTC-USD", "ETH-USD", "SOL-USD"]
-    
+def get_crypto_list():
+    """
+    Retorna uma lista das principais criptomoedas.
+    """
+    return [
+        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", 
+        "ADA-USD", "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD",
+        "MATIC-USD", "SHIB-USD", "LTC-USD", "UNI-USD", "ATOM-USD",
+        "XLM-USD", "XMR-USD", "BCH-USD", "ALGO-USD", "NEAR-USD"
+    ]
+
+def extract_data(symbols, interval="1h", period="90d"):
     os.makedirs("data/raw", exist_ok=True)
-    
     clear_raw_data()
+    
+    total_sucesso = 0
     
     for symbol in symbols:
         try:
-            print(f" Extraindo {symbol} (Período: {period}, Intervalo: {interval})...")
+            print(f" Extraindo {symbol}...")
             ticker = yf.Ticker(symbol)
             
             df = ticker.history(period=period, interval=interval)
             
             if df.empty:
-                print(f" Falha ao obter dados para {symbol}. Tentando período menor...")
                 df = ticker.history(period="30d", interval=interval)
 
             if not df.empty:
                 df = df.reset_index()
                 
-                if 'Datetime' in df.columns:
-                    df['Datetime'] = df['Datetime'].dt.strftime('%Y-%m-%d %H:%M:%S%z')
-                elif 'Date' in df.columns:
-                    df = df.rename(columns={'Date': 'Datetime'})
-                    df['Datetime'] = df['Datetime'].dt.strftime('%Y-%m-%d %H:%M:%S%z')
+                time_col = 'Datetime' if 'Datetime' in df.columns else 'Date'
+                df[time_col] = df[time_col].dt.strftime('%Y-%m-%d %H:%M:%S%z')
+                
+                if time_col != 'Datetime':
+                    df = df.rename(columns={time_col: 'Datetime'})
                 
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f"data/raw/{symbol.lower()}_{timestamp}.json"
+                filename = f"data/raw/{symbol.replace('-', '_').lower()}_{timestamp}.json"
                 
                 df.to_json(filename, orient="records")
-                print(f" {symbol} salvo com sucesso! ({len(df)} linhas)")
-            
+                print(f" {symbol}: {len(df)} linhas salvas.")
+                total_sucesso += 1
+            else:
+                print(f" {symbol}: Nenhum dado encontrado.")
+
         except Exception as e:
-            print(f" Erro ao processar {symbol}: {e}")
+            print(f" Erro em {symbol}: {e}")
+        
+    print(f"\n--- Extração Finalizada: {total_sucesso}/{len(symbols)} ativos processados. ---")
 
 def main():
-   
-    extract_data(interval="1h", period="90d")
+    meus_ativos = get_crypto_list()
+    
+    extract_data(meus_ativos, interval="1h", period="60d")
 
 if __name__ == "__main__":
     main()
