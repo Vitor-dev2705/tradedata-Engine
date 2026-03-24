@@ -1,9 +1,9 @@
-pandas
-yfinance
 duckdb
-fastapi
-uvicorn
-pyarrow
+pandas
 streamlit
 plotly
 streamlit-autorefresh
+yfinance
+requests
+pyjwt==1.7.1
+pydantic>=2.9.0,<3.0.0

@@ -1,19 +1,27 @@
+import os
+import sys
+
+# Adiciona a raiz do projeto ao path para localizar o modulo 'src'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import duckdb
 import pandas as pd
 import numpy as np
-import os
 from src.alerts import send_alert
 
-def detect_levels(df, window=10):
+def detect_levels(df, window=5):
     levels = []
     for i in range(window, len(df) - window):
-        is_high = df['high_price'][i] == max(df['high_price'][i-window:i+window+1])
-        is_low = df['low_price'][i] == min(df['low_price'][i-window:i+window+1])
+        is_high = df['high_price'].iloc[i] == max(df['high_price'].iloc[i-window:i+window+1])
+        is_low = df['low_price'].iloc[i] == min(df['low_price'].iloc[i-window:i+window+1])
         
         if is_high:
-            levels.append((df['symbol'][i], df['time'][i], float(df['high_price'][i]), 'Resistencia'))
+            levels.append((df['symbol'].iloc[i], df['time'].iloc[i], float(df['high_price'].iloc[i]), 'Resistencia'))
         if is_low:
-            levels.append((df['symbol'][i], df['time'][i], float(df['low_price'][i]), 'Suporte'))
+            levels.append((df['symbol'].iloc[i], df['time'].iloc[i], float(df['low_price'].iloc[i]), 'Suporte'))
     return levels
 
 def calculate_zone_strength(df, price, tolerance=0.01):
@@ -36,7 +44,7 @@ def process_group(group_list, df_historico):
         'strength': strength
     }
 
-def group_and_filter_zones(levels_df, df_historico, threshold_percent=2.0):
+def group_and_filter_zones(levels_df, df_historico, threshold_percent=1.5):
     if levels_df.empty:
         return levels_df
     
@@ -61,10 +69,12 @@ def group_and_filter_zones(levels_df, df_historico, threshold_percent=2.0):
     return pd.DataFrame(grouped_levels)
 
 def process_market_analysis():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
     db_path = os.path.join(project_root, 'data', 'silver', 'trading.db').replace('\\', '/')
     
+    if not os.path.exists(db_path):
+        print(f"Erro: Banco de dados nao encontrado em {db_path}")
+        return
+
     con = duckdb.connect(db_path)
     
     try:
@@ -84,36 +94,25 @@ def process_market_analysis():
         for sym in symbols_df['symbol']:
             df = con.execute(f"SELECT * FROM daily_metrics WHERE symbol = '{sym}' ORDER BY time").df()
             
-            if len(df) > 50:
-                raw_levels = detect_levels(df, window=10)
+            if len(df) > 30:
+                raw_levels = detect_levels(df, window=5)
                 levels_df = pd.DataFrame(raw_levels, columns=['symbol', 'time', 'price', 'type'])
                 
-                final_zones_df = group_and_filter_zones(levels_df, df, threshold_percent=2.5)
+                final_zones_df = group_and_filter_zones(levels_df, df, threshold_percent=1.5)
                 
                 if not final_zones_df.empty:
                     con.execute("INSERT INTO price_action_zones SELECT * FROM final_zones_df")
                     total_zones += len(final_zones_df)
                     
                     ultimo_preco = df['close_price'].iloc[-1]
-                    for _, zona in final_zones_df.iterrows():
-                        distancia = abs(ultimo_preco - zona['price']) / zona['price']
-                        
-                        if distancia <= 0.005 and zona['strength'] >= 10:
-                            msg = f"🚀 *ALERTA TRADE: {sym}*\n\n" \
-                                  f"Preço Atual: `${ultimo_preco:,.2f}`\n" \
-                                  f"Zona Detectada: {zona['type']}\n" \
-                                  f"Valor da Zona: `${zona['price']:,.2f}`\n" \
-                                  f"Score de Força: `{zona['strength']}`"
-                            send_alert(msg)
-
-                    print(f" {sym}: {len(final_zones_df)} zonas processadas.")
+                    print(f"{sym}: {len(final_zones_df)} zonas processadas.")
             else:
-                print(f" {sym}: Dados insuficientes.")
+                print(f"{sym}: Dados insuficientes.")
                 
-        print(f"\n MarketBrain Gold: {total_zones} zonas estratégicas prontas.")
+        print(f"\nMarketBrain Gold: {total_zones} zonas estrategicas prontas.")
         
     except Exception as e:
-        print(f" Erro na análise Gold: {e}")
+        print(f"Erro na analise Gold: {e}")
     finally:
         con.close()
 
