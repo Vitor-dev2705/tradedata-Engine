@@ -1,21 +1,22 @@
 import os
 import sys
 import subprocess
-
-try:
-    from streamlit_autorefresh import st_autorefresh
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit-autorefresh"])
-    from streamlit_autorefresh import st_autorefresh
-
 import duckdb
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from pathlib import Path
 
+# Tenta importar o autorefresh, se falhar instala (comum em deploy inicial)
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit-autorefresh"])
+    from streamlit_autorefresh import st_autorefresh
+
 st.set_page_config(page_title="TradeData Engine", layout="wide")
 
+# Estilização CSS
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { font-size: 28px; }
@@ -30,16 +31,21 @@ st.markdown("""
 
 @st.cache_resource
 def get_connection(db_path):
+    # OBRIGATÓRIO: read_only=True para não travar o banco no deploy
     return duckdb.connect(str(db_path), read_only=True)
 
 def load_data(symbol):
-    if os.path.exists('/app'):
-        db_path = Path('/app/data/silver/trading.db')
-    else:
+    # LÓGICA DE CAMINHO DINÂMICO
+    # 1. Tenta caminho relativo (Funciona no GitHub/Streamlit Cloud e Local)
+    base_path = Path(__file__).parent.parent
+    db_path = base_path / "data" / "silver" / "trading.db"
+
+    # 2. Se não achar, tenta o caminho absoluto do seu Windows (Fallback local)
+    if not db_path.exists():
         db_path = Path(r'C:\Users\Micro\Desktop\PORTIFÓLIO\tradedata-Engine\data\silver\trading.db')
     
     if not db_path.exists():
-        return pd.DataFrame(), pd.DataFrame()
+        return pd.DataFrame(), pd.DataFrame(), str(db_path)
 
     con = get_connection(db_path)
     try:
@@ -52,20 +58,21 @@ def load_data(symbol):
         except:
             zones = pd.DataFrame()
             
-        return df, zones
-    except:
-        return pd.DataFrame(), pd.DataFrame()
+        return df, zones, str(db_path)
+    except Exception as e:
+        return pd.DataFrame(), pd.DataFrame(), str(e)
 
+# Refresh automático a cada 30 segundos
 st_autorefresh(interval=30000, key="datarefresh")
 
 st.sidebar.header("Filtros")
 ativo = st.sidebar.selectbox("Ativo:", ["BTC-USD", "ETH-USD", "SOL-USD"])
 
-df, zones = load_data(ativo)
+df, zones, debug_info = load_data(ativo)
 
 if not df.empty:
     ultimo_preco = float(df['close_price'].iloc[-1])
-    st.title(f"Analise: {ativo}")
+    st.title(f"Análise: {ativo}")
     
     fig = go.Figure()
 
@@ -73,7 +80,7 @@ if not df.empty:
         x=df['time'], 
         open=df['open_price'], high=df['high_price'],
         low=df['low_price'], close=df['close_price'], 
-        name="Preco"
+        name="Preço"
     ))
 
     if not zones.empty:
@@ -96,11 +103,13 @@ if not df.empty:
             )
 
     fig.update_layout(template="plotly_dark", height=700, xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
     
     m1, m2, m3 = st.columns(3)
-    m1.metric("Preco Atual", f"$ {ultimo_preco:,.2f}")
+    m1.metric("Preço Atual", f"$ {ultimo_preco:,.2f}")
     m2.metric("Zonas Detectadas", len(zones))
-    m3.metric("Status", "Online")
+    m3.metric("Status Pipeline", "Online" if not df.empty else "Offline")
 else:
-    st.error("Dados nao encontrados. Execute o pipeline primeiro.")
+    st.error(f"Dados não encontrados no repositório.")
+    st.info(f"Caminho verificado: {debug_info}")
+    st.warning("Certifique-se de que o arquivo 'data/silver/trading.db' foi enviado para o GitHub e não está no .gitignore.")
